@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>化學物質毒品查詢系統 - 模糊比對版</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 { font-size: 28px; margin-bottom: 10px; }
+        .header p { opacity: 0.9; font-size: 14px; }
+        .search-section { padding: 40px; }
+        .search-box { display: flex; gap: 10px; margin-bottom: 20px; }
+        #searchInput {
+            flex: 1;
+            padding: 15px 20px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            transition: border-color 0.3s;
+        }
+        #searchInput:focus { outline: none; border-color: #667eea; }
+        #searchBtn {
+            padding: 15px 40px;
+            font-size: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        #searchBtn:hover { transform: translateY(-2px); }
+        #searchBtn:active { transform: translateY(0); }
+        .search-tip {
+            background: #f0f7ff;
+            border-left: 4px solid #667eea;
+            padding: 12px 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            font-size: 14px;
+            color: #555;
+        }
+        .search-tip strong { color: #667eea; }
+        .results { margin-top: 30px; }
+        .result-card {
+            background: #f8f9fa;
+            border-left: 5px solid #667eea;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .result-card.level-1 { border-left-color: #dc3545; background: #fff5f5; }
+        .result-card.level-2 { border-left-color: #fd7e14; background: #fff8f0; }
+        .result-card.level-3 { border-left-color: #ffc107; background: #fffbf0; }
+        .result-card.level-4 { border-left-color: #20c997; background: #f0fdf8; }
+        .result-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .level-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+            color: white;
+        }
+        .level-badge.level-1 { background: #dc3545; }
+        .level-badge.level-2 { background: #fd7e14; }
+        .level-badge.level-3 { background: #ffc107; }
+        .level-badge.level-4 { background: #20c997; }
+        .drug-name { font-size: 20px; font-weight: bold; color: #333; }
+        .drug-info { color: #666; line-height: 1.8; }
+        .drug-info p { margin-bottom: 8px; }
+        .drug-info strong { color: #333; margin-right: 5px; }
+        .no-result { text-align: center; padding: 40px; color: #666; }
+        .no-result-icon { font-size: 60px; margin-bottom: 20px; }
+        .match-highlight {
+            background-color: #fff3cd;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: bold;
+            color: #856404;
+        }
+        .result-count {
+            background: #e7f3ff;
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 16px;
+            color: #004085;
+            border-left: 4px solid #004085;
+        }
+        .result-count strong { color: #667eea; font-size: 18px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔬 化學物質毒品查詢系統</h1>
+            <p>輸入化學物質名稱（中文或英文），快速查詢是否為列管毒品</p>
+        </div>
+        <div class="search-section">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="請輸入化學物質名稱，例如：甲胺、安非他命、Fentanyl" autocomplete="off">
+                <button id="searchBtn">查詢</button>
+            </div>
+            <div class="search-tip">
+                <strong>💡 模糊搜尋提示：</strong>輸入部分名稱即可查詢<br>
+                例如：輸入「甲胺」→ 顯示所有包含「甲胺」的物質（甲基安非他命、二甲胺、甲乙胺等）
+            </div>
+            <div id="results" class="results"></div>
+        </div>
+    </div>
+    <script>
+// 毒品資料庫 - 精簡版（包含主要毒品）
+const drugDatabase = {
+    level1: [
+        { chinese: "乙醯托啡因", english: "Acetorphine", number: 1 },
+        { chinese: "古柯鹼", english: "Cocaine", number: 2 },
+        { chinese: "二氫去氧嗎啡", english: "Desomorphine", number: 3 },
+        { chinese: "海洛因", english: "Heroin", number: 6 },
+        { chinese: "鴉片", english: "Opium", englishAlt: "阿片", number: 8 },
+        { chinese: "嗎啡", english: "Morphine", number: 9 }
+    ],
+    level2: [
+        { chinese: "安非他命", english: "Amphetamine", number: 12 },
+        { chinese: "甲基安非他命", english: "Methamphetamine", number: 89 },
+        { chinese: "3,4-亞甲基雙氧甲基安非他命", english: "MDMA", englishAlt: "3,4-Methylenedioxymethamphetamine", number: 83 },
+        { chinese: "大麻", english: "Cannabis", englishAlt: "Marijuana、Marihuana", number: 24 },
+        { chinese: "吩坦尼", english: "Fentanyl", number: 67 },
+        { chinese: "可待因", english: "Codeine", number: 33 },
+        { chinese: "二氫可待因", english: "Dihydrocodeine", number: 46 },
+        { chinese: "二乙胺二吩丁烯", english: "Diethylthiambutene", number: 43 },
+        { chinese: "二甲胺二吩丁烯", english: "Dimethylthiambutene", number: 50 },
+        { chinese: "甲乙胺二吩丁烯", english: "Ethylmethylthiambutene", number: 62 },
+        { chinese: "麥角二乙胺", english: "LSD", englishAlt: "Lysergide", number: 81 },
+        { chinese: "甲基卡西酮", english: "Methcathinone", number: 166 },
+        { chinese: "N,N-二甲基安非他命", english: "N,N-Dimethylamphetamine", number: 114 },
+        { chinese: "左旋甲基安非他命", english: "Levomethamphetamine", number: 165 },
+        { chinese: "氟甲基安非他命", english: "Fluoromethamphetamine", englishAlt: "FMA", number: 170 },
+        { chinese: "氯甲基安非他命", english: "Chloromethamphetamine", englishAlt: "CMA", number: 173 },
+        { chinese: "甲氧基甲基安非他命", english: "Methoxymethamphetamine", englishAlt: "MMA", number: 181 }
+    ],
+    level3: [
+        { chinese: "愷他命", english: "ketamine", number: 19 },
+        { chinese: "可待因", english: "Codeine", number: 16, note: "製劑含量每100毫升1.0-5.0公克" },
+        { chinese: "二氫可待因", english: "Dihydrocodeine", number: 20, note: "製劑含量每100毫升1.0-5.0公克" },
+        { chinese: "4-甲基甲基卡西酮", english: "Mephedrone", englishAlt: "4-MMC", number: 25 }
+    ],
+    level4: [
+        { chinese: "麻黃", english: "Ephedrine", number: 1, note: "毒品先驅原料" },
+        { chinese: "甲基麻黃", english: "Methylephedrine", number: 5, note: "毒品先驅原料" },
+        { chinese: "去甲麻黃", english: "Phenylpropanolamine", englishAlt: "Norephedrine", number: 6, note: "毒品先驅原料" },
+        { chinese: "假麻黃", english: "Pseudoephedrine", number: 7, note: "毒品先驅原料" },
+        { chinese: "苯基丙酮", english: "Phenyl-2-propanone", englishAlt: "P2P", number: 11, note: "毒品先驅原料" }
+    ]
+};
+
+// DOM elements
+const searchInput = document.getElementById('searchInput');
+const searchBtn = document.getElementById('searchBtn');
+const resultsDiv = document.getElementById('results');
+
+// Search function
+function searchDrug() {
+    const searchTerm = searchInput.value.trim();
+    if (!searchTerm) {
+        resultsDiv.innerHTML = '<div class="no-result"><div class="no-result-icon">⚠️</div><h3>請輸入化學物質名稱</h3></div>';
+        return;
+    }
+    const results = performSearch(searchTerm);
+    displayResults(results, searchTerm);
+}
+
+// Perform fuzzy search
+function performSearch(searchTerm) {
+    const results = [];
+    const searchLower = searchTerm.toLowerCase();
+    Object.entries(drugDatabase).forEach(([level, drugs]) => {
+        drugs.forEach(drug => {
+            const chineseMatch = drug.chinese.includes(searchTerm);
+            const englishMatch = drug.english.toLowerCase().includes(searchLower);
+            const altMatch = drug.englishAlt && drug.englishAlt.toLowerCase().includes(searchLower);
+            if (chineseMatch || englishMatch || altMatch) {
+                results.push({ ...drug, level: level.replace('level', '') });
+            }
+        });
+    });
+    return results;
+}
+
+// Highlight matched text
+function highlightMatch(text, searchTerm) {
+    if (!text) return '';
+    const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    return text.replace(regex, '<span class="match-highlight">$1</span>');
+}
+
+// Display results
+function displayResults(results, searchTerm) {
+    if (results.length === 0) {
+        resultsDiv.innerHTML = `<div class="no-result"><div class="no-result-icon">✓</div><h3>未查詢到相關毒品</h3><p>「${searchTerm}」不在列管毒品清單中</p></div>`;
+        return;
+    }
+    const levelNames = { '1': '第一級毒品', '2': '第二級毒品', '3': '第三級毒品', '4': '第四級毒品' };
+    const levelDesc = {
+        '1': '成癮性強、濫用性高及對社會危害性最大',
+        '2': '成癮性強、濫用性高及對社會危害性大',
+        '3': '成癮性較低、濫用性較高及對社會危害性中等',
+        '4': '成癮性輕微、濫用性較低及對社會危害性較小'
+    };
+    let html = `<div class="result-count">找到 <strong>${results.length}</strong> 筆包含「<strong>${searchTerm}</strong>」的相關物質：</div>`;
+    results.forEach(result => {
+        const englishNames = [result.english];
+        if (result.englishAlt) englishNames.push(...result.englishAlt.split('、'));
+        const highlightedChinese = highlightMatch(result.chinese, searchTerm);
+        const highlightedEnglish = englishNames.map(name => highlightMatch(name, searchTerm)).join('、');
+        html += `<div class="result-card level-${result.level}">
+            <div class="result-header">
+                <span class="level-badge level-${result.level}">${levelNames[result.level]}</span>
+                <span class="drug-name">${highlightedChinese}</span>
+            </div>
+            <div class="drug-info">
+                <p><strong>英文名稱：</strong>${highlightedEnglish}</p>
+                <p><strong>編號：</strong>${levelNames[result.level]}附表 第 ${result.number} 項</p>
+                <p><strong>級別說明：</strong>${levelDesc[result.level]}</p>
+                ${result.note ? `<p><strong>備註：</strong>${result.note}</p>` : ''}
+            </div>
+        </div>`;
+    });
+    resultsDiv.innerHTML = html;
+}
+
+// Event listeners
+searchBtn.addEventListener('click', searchDrug);
+searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') searchDrug(); });
+
+// Auto-search as user types
+let searchTimeout;
+searchInput.addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    if (e.target.value.trim()) {
+        searchTimeout = setTimeout(() => searchDrug(), 500);
+    } else {
+        resultsDiv.innerHTML = '<div class="no-result"><div class="no-result-icon">🔍</div><h3>開始查詢</h3><p>輸入部分名稱即可模糊搜尋</p></div>';
+    }
+});
+
+// Initial message
+resultsDiv.innerHTML = '<div class="no-result"><div class="no-result-icon">🔍</div><h3>開始查詢</h3><p>輸入部分名稱即可模糊搜尋</p></div>';
+    </script>
+</body>
+</html>
